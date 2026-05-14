@@ -30,24 +30,32 @@ public class OrderEnrichmentService {
     private final ResilientApiClientFactory factory;
 
     public InventoryDto enrichOrder(String orderId) {
+        String existingCorrelationId = CorrelationIdContext.get();
+        boolean createdCorrelationId = existingCorrelationId == null || existingCorrelationId.isBlank();
         CorrelationIdContext.getOrCreate();
 
-        OrderDto order = factory.forDependency("step1-api")
-                .get("/orders/" + encode(orderId), OrderDto.class);
-        require(order.customerId() != null, "order " + orderId + " has no customer");
+        try {
+            OrderDto order = factory.forDependency("step1-api")
+                    .get("/orders/" + encode(orderId), OrderDto.class);
+            require(order.customerId() != null, "order " + orderId + " has no customer");
 
-        CustomerDto customer = factory.forDependency("step2-api")
-                .get("/customers/" + encode(order.customerId()), CustomerDto.class);
-        require(customer.pricingTier() != null, "customer " + customer.customerId() + " has no pricing tier");
+            CustomerDto customer = factory.forDependency("step2-api")
+                    .get("/customers/" + encode(order.customerId()), CustomerDto.class);
+            require(customer.pricingTier() != null, "customer " + customer.customerId() + " has no pricing tier");
 
-        PricingDto pricing = factory.forDependency("step3-api")
-                .get("/pricing/" + encode(customer.pricingTier()), PricingDto.class);
+            PricingDto pricing = factory.forDependency("step3-api")
+                    .get("/pricing/" + encode(customer.pricingTier()), PricingDto.class);
 
-        InventoryDto inventory = factory.forDependency("step4-api")
-                .get("/inventory/" + encode(pricing.skuId()), InventoryDto.class);
-        require(inventory.availableUnits() > 0, "SKU " + inventory.skuId() + " is out of stock");
+            InventoryDto inventory = factory.forDependency("step4-api")
+                    .get("/inventory/" + encode(pricing.skuId()), InventoryDto.class);
+            require(inventory.availableUnits() > 0, "SKU " + inventory.skuId() + " is out of stock");
 
-        return inventory;
+            return inventory;
+        } finally {
+            if (createdCorrelationId) {
+                CorrelationIdContext.clear();
+            }
+        }
     }
 
     private static void require(boolean condition, String message) {

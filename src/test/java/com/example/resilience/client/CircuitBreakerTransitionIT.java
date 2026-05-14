@@ -113,4 +113,23 @@ class CircuitBreakerTransitionIT {
                 CircuitBreaker.State.HALF_OPEN,
                 CircuitBreaker.State.CLOSED);
     }
+
+    @Test
+    void nonRetryableClientErrorsBypassFallbackAndDoNotTripBreaker() {
+        CircuitBreaker breaker = circuitBreakerRegistry.circuitBreaker("step1ApiCircuitBreaker");
+        breaker.reset();
+        responseCode = 400;
+
+        ResilientApiClient client = factory.forDependency("step1-api");
+        int requestsBefore = server.getRequestCount();
+
+        for (int i = 0; i < 4; i++) {
+            assertThatThrownBy(() -> client.getEntity("/bad-request"))
+                    .isInstanceOf(NonRetryableExternalApiException.class);
+        }
+
+        assertThat(server.getRequestCount() - requestsBefore).isEqualTo(4);
+        assertThat(breaker.getState()).isEqualTo(CircuitBreaker.State.CLOSED);
+        assertThat(breaker.getMetrics().getNumberOfFailedCalls()).isZero();
+    }
 }

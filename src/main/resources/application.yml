@@ -49,6 +49,8 @@ resilience4j:
         wait-duration-in-open-state: 30s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+        ignore-exceptions:
+          - com.example.resilience.client.NonRetryableExternalApiException
       step2ApiCircuitBreaker: *defaultCb
       step3ApiCircuitBreaker: *defaultCb
       step4ApiCircuitBreaker: *defaultCb

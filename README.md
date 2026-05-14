@@ -71,6 +71,8 @@ resilience4j:
         wait-duration-in-open-state: 30s
         permitted-number-of-calls-in-half-open-state: 3
         automatic-transition-from-open-to-half-open-enabled: true
+        ignore-exceptions:
+          - com.example.resilience.client.NonRetryableExternalApiException
 ```
 
 Adding a new dependency is a YAML-only change: add an `external.dependencies.<name>` entry
@@ -174,8 +176,9 @@ Logged response bodies are passed through [`ResponseBodySanitizer`](src/main/jav
 
 Circuit breaker outside, retry inside: one business call enters the circuit breaker; inside it
 the executor may make several HTTP attempts. If all retries fail, the circuit breaker records
-one failed business call. When the breaker is open, calls short-circuit to the fallback, which
-throws `ExternalApiUnavailableException`.
+one failed business call. Non-retryable `4xx` exceptions are ignored by the breaker and bubble
+up unchanged. When the breaker is open, calls short-circuit to the fallback, which throws
+`ExternalApiUnavailableException`.
 
 ---
 

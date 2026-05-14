@@ -1,6 +1,7 @@
 package com.example.resilience.core;
 
 import com.example.resilience.client.ExternalApiUnavailableException;
+import com.example.resilience.client.NonRetryableExternalApiException;
 import org.springframework.cloud.client.circuitbreaker.CircuitBreaker;
 import org.springframework.cloud.client.circuitbreaker.CircuitBreakerFactory;
 import org.springframework.http.HttpMethod;
@@ -114,6 +115,9 @@ public class ResilientApiClient {
     }
 
     private ResponseEntity<String> fallback(Throwable throwable) {
+        if (throwable instanceof NonRetryableExternalApiException nonRetryable) {
+            throw nonRetryable;
+        }
         throw new ExternalApiUnavailableException(
                 dependencyName + " unavailable. correlationId=" + CorrelationIdContext.get(),
                 throwable
