@@ -7,6 +7,7 @@ It uses:
 
 - Spring Boot 4, Java 21
 - Spring `RestClient`
+- Apache HttpClient 5 connection pooling
 - Resilience4j `RetryRegistry`
 - Java records for external API response DTOs
 - Lombok for constructor/getter/setter boilerplate
@@ -25,14 +26,14 @@ Domain service (for example OrderEnrichmentService)
     -> factory.forDependency("step1-api")
 ResilientApiClient
     -> ResilientRestClientExecutor   (retry + per-attempt logging)
-    -> Spring RestClient             (JDK HttpClient + dependency timeouts)
+    -> Spring RestClient             (Apache HttpClient pool + dependency timeouts)
 ```
 
 | Type | Responsibility |
 |------|----------------|
 | `ExternalDependenciesProperties` | `@ConfigurationProperties(prefix = "external")`: base URL, timeouts, headers, retry params per dependency |
 | `client.dto.*` records | Domain DTOs for JSON response bodies from each external API |
-| `RestClientRegistryConfig` | Builds one `RestClient` per dependency into the `ExternalRestClients` bean |
+| `RestClientRegistryConfig` | Builds one pooled Apache-backed `RestClient` per dependency into the `ExternalRestClients` bean |
 | `ResilienceRetryConfig` | Builds one Resilience4j `RetryConfig` per dependency (instance name == dependency name) |
 | `RetryEventLoggingConfig` / `RetryEventLogging` | Attaches DEBUG retry-lifecycle logging to every retry instance |
 | `ResilientRestClientExecutor` | Attempt counting, per-attempt logging, body sanitization, status classification, retry integration |
@@ -52,6 +53,9 @@ external:
       base-url: https://api1.example.com
       connect-timeout: 2s
       read-timeout: 5s
+      connection-request-timeout: 2s
+      max-connections: 20
+      ssl-bundle: partner-api-tls   # optional: only for APIs that need custom TLS
       default-headers:
         Accept: application/json
       retry:
@@ -59,10 +63,26 @@ external:
         initial-backoff: 500ms
         backoff-multiplier: 2.0
         jitter-factor: 0.0       # > 0 switches to exponential-random backoff
+
+spring:
+  ssl:
+    bundle:
+      jks:
+        partner-api-tls:
+          truststore:
+            location: classpath:tls/partner-truststore.p12
+            password: ${PARTNER_TRUSTSTORE_PASSWORD}
+          keystore:
+            location: classpath:tls/client-cert.p12
+            password: ${PARTNER_KEYSTORE_PASSWORD}
 ```
 
 Adding a new dependency is a YAML-only change: add an `external.dependencies.<name>` entry.
 No new beans and no new code are needed.
+
+Apache HttpClient automatic retries are disabled; Resilience4j remains the only retry owner so
+attempt counts and retry logs stay accurate.
+Omit the `keystore` block when the API only needs a custom trust store and not mutual TLS.
 
 ---
 
