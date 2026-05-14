@@ -23,7 +23,8 @@ retry names or low-level HTTP plumbing.
 
 ```text
 Domain service (for example OrderEnrichmentService)
-    -> factory.forDependency("step1-api")
+    -> API-specific service interface (for example OrderExternalApiService)
+        -> factory.forDependency("step1-api")
 ResilientApiClient
     -> ResilientRestClientExecutor   (retry + per-attempt logging)
     -> Spring RestClient             (Apache HttpClient pool + dependency timeouts)
@@ -33,6 +34,7 @@ ResilientApiClient
 |------|----------------|
 | `ExternalDependenciesProperties` | `@ConfigurationProperties(prefix = "external")`: base URL, timeouts, headers, retry params per dependency |
 | `client.dto.*` records | Domain DTOs for JSON response bodies from each external API |
+| `*ExternalApiService` interfaces | Per-API domain boundaries: URI construction, DTO mapping, and business rules for that external contract |
 | `RestClientRegistryConfig` | Builds one pooled Apache-backed `RestClient` per dependency into the `ExternalRestClients` bean |
 | `ResilienceRetryConfig` | Builds one Resilience4j `RetryConfig` per dependency (instance name == dependency name) |
 | `RetryEventLoggingConfig` / `RetryEventLogging` | Attaches DEBUG retry-lifecycle logging to every retry instance |
@@ -65,8 +67,9 @@ spring.ssl.bundle.jks.partner-api-tls.keystore.location=classpath:tls/client-cer
 spring.ssl.bundle.jks.partner-api-tls.keystore.password=${PARTNER_KEYSTORE_PASSWORD}
 ```
 
-Adding a new dependency is a properties-only change: add an `external.dependencies.<name>` entry.
-No new beans and no new code are needed.
+Adding HTTP wiring for a new dependency is a properties-only change: add an
+`external.dependencies.<name>` entry. Domain-specific DTO mapping and business rules still belong
+behind a small API-specific service interface.
 
 Apache HttpClient automatic retries are disabled; Resilience4j remains the only retry owner so
 attempt counts and retry logs stay accurate.
@@ -81,12 +84,17 @@ Omit the `keystore` block when the API only needs a custom trust store and not m
 @RequiredArgsConstructor
 public class OrderEnrichmentService {
 
-    private final ResilientApiClientFactory factory;
+    private final OrderExternalApiService orderService;
+    private final CustomerExternalApiService customerService;
+    private final PricingExternalApiService pricingService;
+    private final InventoryExternalApiService inventoryService;
 
-    public String enrichOrder(String orderId) {
+    public InventoryDto enrichOrder(String orderId) {
         CorrelationIdContext.getOrCreate(); // one id for the whole chain
-        String order = factory.forDependency("step1-api").get("/orders/" + orderId);
-        // each external call retries independently
+        OrderDto order = orderService.getOrder(orderId);
+        CustomerDto customer = customerService.getCustomer(order.customerId());
+        PricingDto pricing = pricingService.getPricing(customer.pricingTier());
+        return inventoryService.getInventory(pricing.skuId());
     }
 }
 ```
