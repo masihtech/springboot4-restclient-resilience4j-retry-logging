@@ -1,6 +1,7 @@
 package com.example.resilience.core;
 
 import com.example.resilience.config.ExternalDependenciesProperties;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -13,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * per dependency. By convention the retry instance name equals the dependency name.
  */
 @Component
+@RequiredArgsConstructor
 public class ResilientApiClientFactory {
 
     private final ExternalRestClients restClients;
@@ -20,18 +22,6 @@ public class ResilientApiClientFactory {
     private final ExternalDependenciesProperties properties;
     private final ObjectMapper objectMapper;
     private final Map<String, ResilientApiClient> cache = new ConcurrentHashMap<>();
-
-    public ResilientApiClientFactory(
-            ExternalRestClients restClients,
-            ResilientRestClientExecutor executor,
-            ExternalDependenciesProperties properties,
-            ObjectMapper objectMapper
-    ) {
-        this.restClients = restClients;
-        this.executor = executor;
-        this.properties = properties;
-        this.objectMapper = objectMapper;
-    }
 
     public ResilientApiClient forDependency(String name) {
         return cache.computeIfAbsent(name, this::build);

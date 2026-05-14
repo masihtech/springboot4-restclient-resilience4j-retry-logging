@@ -1,5 +1,6 @@
 package com.example.resilience.core;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.client.RestClient;
@@ -18,24 +19,13 @@ import tools.jackson.databind.ObjectMapper;
  * JSON, and a deserialization failure on a successful response is a client-side mapping bug,
  * not something to retry.
  */
+@RequiredArgsConstructor
 public class ResilientApiClient {
 
     private final String dependencyName;
     private final RestClient restClient;
     private final ResilientRestClientExecutor executor;
     private final ObjectMapper objectMapper;
-
-    public ResilientApiClient(
-            String dependencyName,
-            RestClient restClient,
-            ResilientRestClientExecutor executor,
-            ObjectMapper objectMapper
-    ) {
-        this.dependencyName = dependencyName;
-        this.restClient = restClient;
-        this.executor = executor;
-        this.objectMapper = objectMapper;
-    }
 
     /** Retry-decorated GET returning the raw response body. */
     public String get(String uri) {

@@ -8,6 +8,8 @@ It uses:
 - Spring Boot 4, Java 21
 - Spring `RestClient`
 - Resilience4j `RetryRegistry`
+- Java records for external API response DTOs
+- Lombok for constructor/getter/setter boilerplate
 - DEBUG-only per-attempt response logging
 
 This project intentionally does **not** include circuit breakers. Each dependency gets one
@@ -29,6 +31,7 @@ ResilientApiClient
 | Type | Responsibility |
 |------|----------------|
 | `ExternalDependenciesProperties` | `@ConfigurationProperties(prefix = "external")`: base URL, timeouts, headers, retry params per dependency |
+| `client.dto.*` records | Domain DTOs for JSON response bodies from each external API |
 | `RestClientRegistryConfig` | Builds one `RestClient` per dependency into the `ExternalRestClients` bean |
 | `ResilienceRetryConfig` | Builds one Resilience4j `RetryConfig` per dependency (instance name == dependency name) |
 | `RetryEventLoggingConfig` / `RetryEventLogging` | Attaches DEBUG retry-lifecycle logging to every retry instance |
