@@ -17,7 +17,8 @@ class ExternalDependenciesPropertiesTest {
     void bindsDependenciesAndAppliesDefaults() {
         runner.withPropertyValues(
                 "external.dependencies.step1-api.base-url=https://api1.example.com",
-                "external.dependencies.step1-api.read-timeout=7s"
+                "external.dependencies.step1-api.read-timeout=7s",
+                "external.dependencies.step1-api.ssl-bundle=partner-api-tls"
         ).run(context -> {
             assertThat(context).hasNotFailed();
             ExternalDependenciesProperties props = context.getBean(ExternalDependenciesProperties.class);
@@ -26,6 +27,9 @@ class ExternalDependenciesPropertiesTest {
             assertThat(dep.getBaseUrl()).isEqualTo("https://api1.example.com");
             assertThat(dep.getReadTimeout()).isEqualTo(Duration.ofSeconds(7));
             assertThat(dep.getConnectTimeout()).isEqualTo(Duration.ofSeconds(2)); // default
+            assertThat(dep.getConnectionRequestTimeout()).isEqualTo(Duration.ofSeconds(2)); // default
+            assertThat(dep.getMaxConnections()).isEqualTo(20);                   // default
+            assertThat(dep.getSslBundle()).isEqualTo("partner-api-tls");
             assertThat(dep.getRetry().getMaxAttempts()).isEqualTo(4);             // default
             assertThat(dep.getRetry().getBackoffMultiplier()).isEqualTo(2.0);     // default
         });
@@ -43,6 +47,14 @@ class ExternalDependenciesPropertiesTest {
         runner.withPropertyValues(
                 "external.dependencies.bad.base-url=https://x",
                 "external.dependencies.bad.retry.max-attempts=0"
+        ).run(context -> assertThat(context).hasFailed());
+    }
+
+    @Test
+    void rejectsMaxConnectionsBelowOne() {
+        runner.withPropertyValues(
+                "external.dependencies.bad.base-url=https://x",
+                "external.dependencies.bad.max-connections=0"
         ).run(context -> assertThat(context).hasFailed());
     }
 

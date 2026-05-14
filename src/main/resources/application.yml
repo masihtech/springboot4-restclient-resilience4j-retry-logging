@@ -10,6 +10,9 @@ external:
       base-url: https://api1.example.com
       connect-timeout: 2s
       read-timeout: 5s
+      connection-request-timeout: 2s
+      max-connections: 20
+      # ssl-bundle: partner-api-tls
       default-headers:
         Accept: application/json
       retry:
