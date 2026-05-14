@@ -49,6 +49,13 @@ public class ExternalDependenciesProperties {
 
         private Duration readTimeout = Duration.ofSeconds(5);
 
+        private Duration connectionRequestTimeout = Duration.ofSeconds(2);
+
+        @Min(1)
+        private int maxConnections = 20;
+
+        private String sslBundle;
+
         private Map<String, String> defaultHeaders = new LinkedHashMap<>(Map.of("Accept", "application/json"));
 
         @Valid
