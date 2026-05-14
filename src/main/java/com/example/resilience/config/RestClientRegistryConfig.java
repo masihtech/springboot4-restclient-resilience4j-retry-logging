@@ -8,7 +8,7 @@ import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 
 import java.net.http.HttpClient;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -26,7 +26,7 @@ public class RestClientRegistryConfig {
             RestClient.Builder builder,
             ExternalDependenciesProperties properties
     ) {
-        Map<String, RestClient> clients = new LinkedHashMap<>();
+        Map<String, RestClient> clients = new HashMap<>();
 
         properties.getDependencies().forEach((name, dependency) -> {
             HttpClient httpClient = HttpClient.newBuilder()
