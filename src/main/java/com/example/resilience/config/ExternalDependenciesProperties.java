@@ -14,9 +14,8 @@ import java.util.Map;
 
 /**
  * Externalized configuration for every outbound HTTP dependency, keyed by a logical
- * dependency name (e.g. {@code step1-api}). Each entry drives one {@code RestClient},
- * one Resilience4j retry instance, and optionally references a circuit breaker instance
- * declared under the {@code resilience4j.circuitbreaker} namespace.
+ * dependency name (e.g. {@code step1-api}). Each entry drives one {@code RestClient}
+ * and one Resilience4j retry instance.
  */
 @Validated
 @ConfigurationProperties(prefix = "external")
@@ -57,9 +56,6 @@ public class ExternalDependenciesProperties {
         @Valid
         private Retry retry = new Retry();
 
-        /** Name of a {@code resilience4j.circuitbreaker} instance; {@code null}/blank means no circuit breaker. */
-        private String circuitBreaker;
-
         public String getBaseUrl() {
             return baseUrl;
         }
@@ -98,18 +94,6 @@ public class ExternalDependenciesProperties {
 
         public void setRetry(Retry retry) {
             this.retry = retry;
-        }
-
-        public String getCircuitBreaker() {
-            return circuitBreaker;
-        }
-
-        public void setCircuitBreaker(String circuitBreaker) {
-            this.circuitBreaker = circuitBreaker;
-        }
-
-        public boolean hasCircuitBreaker() {
-            return circuitBreaker != null && !circuitBreaker.isBlank();
         }
     }
 

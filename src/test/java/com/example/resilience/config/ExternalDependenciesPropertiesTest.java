@@ -17,8 +17,7 @@ class ExternalDependenciesPropertiesTest {
     void bindsDependenciesAndAppliesDefaults() {
         runner.withPropertyValues(
                 "external.dependencies.step1-api.base-url=https://api1.example.com",
-                "external.dependencies.step1-api.read-timeout=7s",
-                "external.dependencies.step1-api.circuit-breaker=step1Cb"
+                "external.dependencies.step1-api.read-timeout=7s"
         ).run(context -> {
             assertThat(context).hasNotFailed();
             ExternalDependenciesProperties props = context.getBean(ExternalDependenciesProperties.class);
@@ -29,7 +28,6 @@ class ExternalDependenciesPropertiesTest {
             assertThat(dep.getConnectTimeout()).isEqualTo(Duration.ofSeconds(2)); // default
             assertThat(dep.getRetry().getMaxAttempts()).isEqualTo(4);             // default
             assertThat(dep.getRetry().getBackoffMultiplier()).isEqualTo(2.0);     // default
-            assertThat(dep.hasCircuitBreaker()).isTrue();
         });
     }
 
