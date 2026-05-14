@@ -15,6 +15,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * End-to-end test of the four-call sequential chain: each step feeds the next, each step retries
@@ -104,6 +105,21 @@ class SequentialChainIT {
         assertThat(step2.getRequestCount() - b2).isEqualTo(1);
         assertThat(step3.getRequestCount() - b3).isEqualTo(2); // one failure + one success
         assertThat(step4.getRequestCount() - b4).isEqualTo(1);
+    }
+
+    @Test
+    void stopsChainWhenApiServiceBusinessRuleFails() {
+        int b1 = step1.getRequestCount();
+        int b2 = step2.getRequestCount();
+
+        step1.enqueue(json("{\"orderId\":\"O5\"}"));
+
+        assertThatThrownBy(() -> service.enrichOrder("O5"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("order O5 has no customer");
+
+        assertThat(step1.getRequestCount() - b1).isEqualTo(1);
+        assertThat(step2.getRequestCount() - b2).isZero();
     }
 
     @Test
