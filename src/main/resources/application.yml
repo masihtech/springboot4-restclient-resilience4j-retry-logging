@@ -2,13 +2,8 @@ spring:
   threads:
     virtual:
       enabled: true
-  cloud:
-    circuitbreaker:
-      resilience4j:
-        enabled: true
 
 # Each entry builds one RestClient + one Resilience4j retry instance (instance name == key).
-# 'circuit-breaker' references an instance under resilience4j.circuitbreaker.instances below.
 external:
   dependencies:
     step1-api:
@@ -21,39 +16,18 @@ external:
         max-attempts: 4
         initial-backoff: 500ms
         backoff-multiplier: 2.0
-      circuit-breaker: step1ApiCircuitBreaker
     step2-api:
       base-url: https://api2.example.com
       retry:
         max-attempts: 4
-      circuit-breaker: step2ApiCircuitBreaker
     step3-api:
       base-url: https://api3.example.com
       retry:
         max-attempts: 4
-      circuit-breaker: step3ApiCircuitBreaker
     step4-api:
       base-url: https://api4.example.com
       retry:
         max-attempts: 4
-      circuit-breaker: step4ApiCircuitBreaker
-
-resilience4j:
-  circuitbreaker:
-    instances:
-      step1ApiCircuitBreaker: &defaultCb
-        sliding-window-type: count_based
-        sliding-window-size: 20
-        minimum-number-of-calls: 10
-        failure-rate-threshold: 50
-        wait-duration-in-open-state: 30s
-        permitted-number-of-calls-in-half-open-state: 3
-        automatic-transition-from-open-to-half-open-enabled: true
-        ignore-exceptions:
-          - com.example.resilience.client.NonRetryableExternalApiException
-      step2ApiCircuitBreaker: *defaultCb
-      step3ApiCircuitBreaker: *defaultCb
-      step4ApiCircuitBreaker: *defaultCb
 
 logging:
   level:
