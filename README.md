@@ -46,38 +46,26 @@ ResilientApiClient
 
 ## Configuration
 
-```yaml
-external:
-  dependencies:
-    step1-api:
-      base-url: https://api1.example.com
-      connect-timeout: 2s
-      read-timeout: 5s
-      connection-request-timeout: 2s
-      max-connections: 20
-      ssl-bundle: partner-api-tls   # optional: only for APIs that need custom TLS
-      default-headers:
-        Accept: application/json
-      retry:
-        max-attempts: 4          # original call + 3 retries
-        initial-backoff: 500ms
-        backoff-multiplier: 2.0
-        jitter-factor: 0.0       # > 0 switches to exponential-random backoff
+```properties
+external.dependencies.step1-api.base-url=https://api1.example.com
+external.dependencies.step1-api.connect-timeout=2s
+external.dependencies.step1-api.read-timeout=5s
+external.dependencies.step1-api.connection-request-timeout=2s
+external.dependencies.step1-api.max-connections=20
+external.dependencies.step1-api.ssl-bundle=partner-api-tls
+external.dependencies.step1-api.default-headers.Accept=application/json
+external.dependencies.step1-api.retry.max-attempts=4
+external.dependencies.step1-api.retry.initial-backoff=500ms
+external.dependencies.step1-api.retry.backoff-multiplier=2.0
+external.dependencies.step1-api.retry.jitter-factor=0.0
 
-spring:
-  ssl:
-    bundle:
-      jks:
-        partner-api-tls:
-          truststore:
-            location: classpath:tls/partner-truststore.p12
-            password: ${PARTNER_TRUSTSTORE_PASSWORD}
-          keystore:
-            location: classpath:tls/client-cert.p12
-            password: ${PARTNER_KEYSTORE_PASSWORD}
+spring.ssl.bundle.jks.partner-api-tls.truststore.location=classpath:tls/partner-truststore.p12
+spring.ssl.bundle.jks.partner-api-tls.truststore.password=${PARTNER_TRUSTSTORE_PASSWORD}
+spring.ssl.bundle.jks.partner-api-tls.keystore.location=classpath:tls/client-cert.p12
+spring.ssl.bundle.jks.partner-api-tls.keystore.password=${PARTNER_KEYSTORE_PASSWORD}
 ```
 
-Adding a new dependency is a YAML-only change: add an `external.dependencies.<name>` entry.
+Adding a new dependency is a properties-only change: add an `external.dependencies.<name>` entry.
 No new beans and no new code are needed.
 
 Apache HttpClient automatic retries are disabled; Resilience4j remains the only retry owner so
