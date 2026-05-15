@@ -1,6 +1,8 @@
 package com.example.resilience.client;
 
 import com.example.resilience.client.dto.InventoryDto;
+import com.example.resilience.core.CorrelationIdContext;
+import org.junit.jupiter.api.AfterEach;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.junit.jupiter.api.AfterAll;
@@ -13,6 +15,7 @@ import org.springframework.test.context.DynamicPropertySource;
 import java.io.IOException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * End-to-end test of the four-call sequential chain: each step feeds the next, each step retries
@@ -52,6 +55,11 @@ class SequentialChainIT {
         step2.shutdown();
         step3.shutdown();
         step4.shutdown();
+    }
+
+    @AfterEach
+    void clearCorrelationId() {
+        CorrelationIdContext.clear();
     }
 
     @Test
@@ -97,6 +105,47 @@ class SequentialChainIT {
         assertThat(step2.getRequestCount() - b2).isEqualTo(1);
         assertThat(step3.getRequestCount() - b3).isEqualTo(2); // one failure + one success
         assertThat(step4.getRequestCount() - b4).isEqualTo(1);
+    }
+
+    @Test
+    void stopsChainWhenApiServiceBusinessRuleFails() {
+        int b1 = step1.getRequestCount();
+        int b2 = step2.getRequestCount();
+
+        step1.enqueue(json("{\"orderId\":\"O5\"}"));
+
+        assertThatThrownBy(() -> service.enrichOrder("O5"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("order O5 has no customer");
+
+        assertThat(step1.getRequestCount() - b1).isEqualTo(1);
+        assertThat(step2.getRequestCount() - b2).isZero();
+    }
+
+    @Test
+    void clearsGeneratedCorrelationIdAfterChainCompletes() {
+        step1.enqueue(json("{\"orderId\":\"O3\",\"customerId\":\"C3\"}"));
+        step2.enqueue(json("{\"customerId\":\"C3\",\"pricingTier\":\"P3\"}"));
+        step3.enqueue(json("{\"pricingTier\":\"P3\",\"skuId\":\"S3\"}"));
+        step4.enqueue(json("{\"skuId\":\"S3\",\"availableUnits\":5}"));
+
+        service.enrichOrder("O3");
+
+        assertThat(CorrelationIdContext.get()).isNull();
+    }
+
+    @Test
+    void keepsCallerCorrelationIdAfterChainCompletes() {
+        step1.enqueue(json("{\"orderId\":\"O4\",\"customerId\":\"C4\"}"));
+        step2.enqueue(json("{\"customerId\":\"C4\",\"pricingTier\":\"P4\"}"));
+        step3.enqueue(json("{\"pricingTier\":\"P4\",\"skuId\":\"S4\"}"));
+        step4.enqueue(json("{\"skuId\":\"S4\",\"availableUnits\":2}"));
+
+        CorrelationIdContext.set("caller-correlation");
+
+        service.enrichOrder("O4");
+
+        assertThat(CorrelationIdContext.get()).isEqualTo("caller-correlation");
     }
 
     private static MockResponse json(String body) {

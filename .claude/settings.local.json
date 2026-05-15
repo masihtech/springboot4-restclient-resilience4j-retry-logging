@@ -1,8 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(mvn -q compile)",
-      "PowerShell(Get-Command mvn,mvnw,mvn.cmd -ErrorAction SilentlyContinue)"
-    ]
-  }
-}

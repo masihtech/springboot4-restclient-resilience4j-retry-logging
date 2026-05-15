@@ -1,7 +1,9 @@
 package com.example.resilience.client;
 
+import lombok.Getter;
 import org.springframework.http.HttpStatusCode;
 
+@Getter
 public class NonRetryableExternalApiException extends RuntimeException {
 
     private final HttpStatusCode statusCode;
@@ -13,11 +15,4 @@ public class NonRetryableExternalApiException extends RuntimeException {
         this.responseBody = responseBody;
     }
 
-    public HttpStatusCode getStatusCode() {
-        return statusCode;
-    }
-
-    public String getResponseBody() {
-        return responseBody;
-    }
 }

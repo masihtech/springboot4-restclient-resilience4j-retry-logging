@@ -20,8 +20,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Verifies the typed {@code get} overloads on {@link ResilientApiClient}: JSON responses are
- * deserialized into record DTOs after the resilient call returns. Wired without a circuit
- * breaker (null name) so the factory is unnecessary.
+ * deserialized into record DTOs after the resilient call returns.
  */
 class TypedResponseIT {
 
@@ -38,8 +37,6 @@ class TypedResponseIT {
                 "step4-api",
                 TestSupport.restClient(server.url("/").toString(), Duration.ofMillis(500), Duration.ofMillis(300)),
                 executor,
-                null,
-                null,
                 new ObjectMapper());
     }
 

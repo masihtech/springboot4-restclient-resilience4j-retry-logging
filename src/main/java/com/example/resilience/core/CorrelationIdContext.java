@@ -6,9 +6,9 @@ import java.util.UUID;
 
 /**
  * Thin wrapper over SLF4J {@link MDC} for the request correlation id. The id is stored on the
- * calling thread; Resilience4j {@code Retry.decorateSupplier} and the Spring Cloud circuit
- * breaker both run synchronously on that thread, so the id survives every retry attempt and is
- * visible to retry event listeners without being threaded through method signatures.
+ * calling thread; Resilience4j {@code Retry.decorateSupplier} runs synchronously on that thread,
+ * so the id survives every retry attempt and is visible to retry event listeners without being
+ * threaded through method signatures.
  */
 public final class CorrelationIdContext {
 
