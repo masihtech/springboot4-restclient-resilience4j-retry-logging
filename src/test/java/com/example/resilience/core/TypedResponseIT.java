@@ -5,6 +5,7 @@ import com.example.resilience.support.TestSupport;
 import io.github.resilience4j.retry.RetryRegistry;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,23 @@ class TypedResponseIT {
 
         assertThat(dto.skuId()).isEqualTo("S1");
         assertThat(dto.availableUnits()).isEqualTo(7);
+    }
+
+    @Test
+    void typedGetAcceptsStructuredRequestMetadata() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(200)
+                .setBody("{\"skuId\":\"S1\",\"availableUnits\":7}"));
+
+        InventoryDto dto = client.get(ApiRequest.builder("/inventory/{skuId}")
+                .uriVariable("skuId", "S1")
+                .queryParam("warehouse", "east")
+                .header("X-Inventory-Scope", "regional")
+                .build(), InventoryDto.class);
+
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(dto.availableUnits()).isEqualTo(7);
+        assertThat(recorded.getPath()).isEqualTo("/inventory/S1?warehouse=east");
+        assertThat(recorded.getHeader("X-Inventory-Scope")).isEqualTo("regional");
     }
 
     @Test

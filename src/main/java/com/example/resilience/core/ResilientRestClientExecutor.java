@@ -17,6 +17,7 @@ import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -40,8 +41,18 @@ public class ResilientRestClientExecutor {
             String dependencyName,
             String uri
     ) {
-        return execute(retryName, dependencyName, HttpMethod.GET, uri,
-                () -> restClient.get().uri(uri));
+        return executeGet(restClient, retryName, dependencyName, ApiRequest.uri(uri));
+    }
+
+    /** Executes a retry-decorated GET. Safe to retry: GET is idempotent. */
+    public ResponseEntity<String> executeGet(
+            RestClient restClient,
+            String retryName,
+            String dependencyName,
+            ApiRequest request
+    ) {
+        return execute(retryName, dependencyName, HttpMethod.GET, request,
+                () -> applyHeaders(restClient.get().uri(request::toUri), request));
     }
 
     /**
@@ -58,13 +69,29 @@ public class ResilientRestClientExecutor {
             Object body,
             String idempotencyKey
     ) {
+        return executeIdempotentMutation(
+                restClient, retryName, dependencyName, method, ApiRequest.uri(uri), body, idempotencyKey);
+    }
+
+    public ResponseEntity<String> executeIdempotentMutation(
+            RestClient restClient,
+            String retryName,
+            String dependencyName,
+            HttpMethod method,
+            ApiRequest request,
+            Object body,
+            String idempotencyKey
+    ) {
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new IllegalArgumentException(
                     "An idempotency key is required to retry a " + method + " on " + dependencyName);
         }
-        return execute(retryName, dependencyName, method, uri, () -> {
-            RestClient.RequestBodySpec spec = restClient.method(method).uri(uri)
-                    .header("Idempotency-Key", idempotencyKey);
+        return execute(retryName, dependencyName, method, request, () -> {
+            RestClient.RequestBodySpec spec = restClient.method(method).uri(request::toUri);
+            spec.headers(headers -> {
+                headers.addAll(request.headers());
+                headers.set("Idempotency-Key", idempotencyKey);
+            });
             if (body != null) {
                 spec.body(body);
             }
@@ -76,11 +103,13 @@ public class ResilientRestClientExecutor {
             String retryName,
             String dependencyName,
             HttpMethod method,
-            String uri,
+            ApiRequest request,
             Supplier<RestClient.RequestHeadersSpec<?>> requestSpec
     ) {
+        Objects.requireNonNull(request, "request must not be null");
         Retry retry = retryRegistry.retry(retryName);
         AtomicInteger attemptCounter = new AtomicInteger(0);
+        String uri = request.logUri();
 
         Supplier<ResponseEntity<String>> supplier = Retry.decorateSupplier(retry, () -> {
             int attempt = attemptCounter.incrementAndGet();
@@ -95,7 +124,7 @@ public class ResilientRestClientExecutor {
             }
 
             try {
-                return requestSpec.get().exchange((request, clientResponse) -> {
+                return requestSpec.get().exchange((clientRequest, clientResponse) -> {
                     HttpStatusCode statusCode = clientResponse.getStatusCode();
                     String responseBody = readBody(clientResponse, dependencyName, correlationId,
                             retryName, attempt, method, uri, startNanos);
@@ -105,7 +134,7 @@ public class ResilientRestClientExecutor {
                         log.debug(
                                 "external_call_attempt_response dependency={} correlationId={} retryName={} attempt={} method={} uri={} status={} durationMs={} body={}",
                                 dependencyName, correlationId, retryName, attempt,
-                                request.getMethod(), request.getURI(),
+                                clientRequest.getMethod(), clientRequest.getURI(),
                                 statusCode.value(), durationMs,
                                 ResponseBodySanitizer.sanitize(responseBody)
                         );
@@ -150,6 +179,16 @@ public class ResilientRestClientExecutor {
         });
 
         return supplier.get();
+    }
+
+    private RestClient.RequestHeadersSpec<?> applyHeaders(
+            RestClient.RequestHeadersSpec<?> spec,
+            ApiRequest request
+    ) {
+        if (!request.headers().isEmpty()) {
+            spec.headers(headers -> headers.addAll(request.headers()));
+        }
+        return spec;
     }
 
     /** Reads the response body, treating a mid-stream I/O failure as a retryable transport error. */

@@ -35,6 +35,7 @@ Spring RestClient                       ← JDK HttpClient, per-dependency timeo
 | `ResilienceRetryConfig` | Builds one Resilience4j `RetryConfig` per dependency (instance name == dependency name) |
 | `RetryEventLoggingConfig` / `RetryEventLogging` | Attaches DEBUG retry-lifecycle logging to every retry instance |
 | `ResilientRestClientExecutor` | Attempt counting, per-attempt logging, body sanitization, status classification, retry integration |
+| `ApiRequest` | Per-call URI template variables, query params, and request headers |
 | `ResilientApiClient` | Per-dependency facade: circuit-breaker-guarded `get` / `exchangeIdempotent` |
 | `ResilientApiClientFactory` | Resolves and caches one `ResilientApiClient` per dependency |
 | `CorrelationIdContext` | MDC-backed correlation id, propagated across every retry attempt |
@@ -89,14 +90,23 @@ public class OrderEnrichmentService {
 
     public String enrichOrder(String orderId) {
         CorrelationIdContext.getOrCreate();                       // one id for the whole chain
-        String order = factory.forDependency("step1-api").get("/orders/" + orderId);
+        String order = factory.forDependency("step1-api").get(ApiRequest.builder("/accounts/{accountId}/orders/{orderId}")
+                .uriVariable("accountId", "A1")
+                .uriVariable("orderId", orderId)
+                .queryParam("include", "customer")
+                .queryParam("status", "OPEN", "PENDING")
+                .header("X-Tenant-Id", "tenant-1")
+                .header("X-Api-Version", "2026-05")
+                .build());
         // ... each call retries independently and has its own circuit breaker
     }
 }
 ```
 
 See [`OrderEnrichmentService`](src/main/java/com/example/resilience/client/OrderEnrichmentService.java)
-for the full four-call sequential chain, the intended adoption template.
+for the full four-call sequential chain, the intended adoption template. Simple calls can still
+use `get("/orders/123")`; use `ApiRequest` when each external API needs a different URI
+shape, query string, or header set.
 
 ---
 
@@ -126,7 +136,7 @@ Classification lives in [`HttpResponseClassifier`](src/main/java/com/example/res
 ## Safe mutation retries
 
 GET is the default-safe path. For mutations, `ResilientApiClient.exchangeIdempotent(method,
-uri, body, idempotencyKey)`:
+request, body, idempotencyKey)`:
 
 - The `idempotencyKey` is **mandatory** — a blank key throws `IllegalArgumentException`. There
   is no retrying-mutation method without a key, so unsafe retries are structurally impossible.

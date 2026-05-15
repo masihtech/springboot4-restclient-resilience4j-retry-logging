@@ -6,6 +6,7 @@ import com.example.resilience.support.TestSupport;
 import io.github.resilience4j.retry.RetryRegistry;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -87,6 +88,35 @@ class ResilientRestClientExecutorRetryIT {
 
         assertThat(response.getBody()).isEqualTo("ok");
         assertThat(server.getRequestCount()).isEqualTo(2);
+    }
+
+    @Test
+    void expandsUriVariablesQueryParamsAndHeadersOnEveryAttempt() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(503).setBody("retry me"));
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("ok"));
+
+        ApiRequest request = ApiRequest.builder("/accounts/{accountId}/orders/{orderId}")
+                .uriVariable("accountId", "A1")
+                .uriVariable("orderId", "O2")
+                .queryParam("include", "items")
+                .queryParam("status", "OPEN", "PENDING")
+                .header("X-Tenant-Id", "tenant-1")
+                .header("X-Api-Version", "2026-05")
+                .build();
+
+        ResponseEntity<String> response = executor.executeGet(restClient, RETRY, "test-api", request);
+
+        assertThat(response.getBody()).isEqualTo("ok");
+        assertThat(server.getRequestCount()).isEqualTo(2);
+
+        RecordedRequest first = server.takeRequest();
+        RecordedRequest second = server.takeRequest();
+        assertThat(first.getPath())
+                .isEqualTo("/accounts/A1/orders/O2?include=items&status=OPEN&status=PENDING");
+        assertThat(second.getPath()).isEqualTo(first.getPath());
+        assertThat(first.getHeader("X-Tenant-Id")).isEqualTo("tenant-1");
+        assertThat(second.getHeader("X-Tenant-Id")).isEqualTo("tenant-1");
+        assertThat(first.getHeader("X-Api-Version")).isEqualTo("2026-05");
     }
 
     @Test
