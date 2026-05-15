@@ -23,7 +23,8 @@ retry names or low-level HTTP plumbing.
 
 ```text
 Domain service (for example OrderEnrichmentService)
-    -> factory.forDependency("step1-api")
+    -> API-specific service interface (for example OrderExternalApiService)
+        -> factory.forDependency("step1-api")
 ResilientApiClient
     -> ResilientRestClientExecutor   (retry + per-attempt logging)
     -> Spring RestClient             (Apache HttpClient pool + dependency timeouts)
@@ -33,6 +34,7 @@ ResilientApiClient
 |------|----------------|
 | `ExternalDependenciesProperties` | `@ConfigurationProperties(prefix = "external")`: base URL, timeouts, headers, retry params per dependency |
 | `client.dto.*` records | Domain DTOs for JSON response bodies from each external API |
+| `*ExternalApiService` interfaces | Per-API domain boundaries: URI construction, DTO mapping, and business rules for that external contract |
 | `RestClientRegistryConfig` | Builds one pooled Apache-backed `RestClient` per dependency into the `ExternalRestClients` bean |
 | `ResilienceRetryConfig` | Builds one Resilience4j `RetryConfig` per dependency (instance name == dependency name) |
 | `RetryEventLoggingConfig` / `RetryEventLogging` | Attaches DEBUG retry-lifecycle logging to every retry instance |
@@ -46,39 +48,28 @@ ResilientApiClient
 
 ## Configuration
 
-```yaml
-external:
-  dependencies:
-    step1-api:
-      base-url: https://api1.example.com
-      connect-timeout: 2s
-      read-timeout: 5s
-      connection-request-timeout: 2s
-      max-connections: 20
-      ssl-bundle: partner-api-tls   # optional: only for APIs that need custom TLS
-      default-headers:
-        Accept: application/json
-      retry:
-        max-attempts: 4          # original call + 3 retries
-        initial-backoff: 500ms
-        backoff-multiplier: 2.0
-        jitter-factor: 0.0       # > 0 switches to exponential-random backoff
+```properties
+external.dependencies.step1-api.base-url=https://api1.example.com
+external.dependencies.step1-api.connect-timeout=2s
+external.dependencies.step1-api.read-timeout=5s
+external.dependencies.step1-api.connection-request-timeout=2s
+external.dependencies.step1-api.max-connections=20
+external.dependencies.step1-api.ssl-bundle=partner-api-tls
+external.dependencies.step1-api.default-headers.Accept=application/json
+external.dependencies.step1-api.retry.max-attempts=4
+external.dependencies.step1-api.retry.initial-backoff=500ms
+external.dependencies.step1-api.retry.backoff-multiplier=2.0
+external.dependencies.step1-api.retry.jitter-factor=0.0
 
-spring:
-  ssl:
-    bundle:
-      jks:
-        partner-api-tls:
-          truststore:
-            location: classpath:tls/partner-truststore.p12
-            password: ${PARTNER_TRUSTSTORE_PASSWORD}
-          keystore:
-            location: classpath:tls/client-cert.p12
-            password: ${PARTNER_KEYSTORE_PASSWORD}
+spring.ssl.bundle.jks.partner-api-tls.truststore.location=classpath:tls/partner-truststore.p12
+spring.ssl.bundle.jks.partner-api-tls.truststore.password=${PARTNER_TRUSTSTORE_PASSWORD}
+spring.ssl.bundle.jks.partner-api-tls.keystore.location=classpath:tls/client-cert.p12
+spring.ssl.bundle.jks.partner-api-tls.keystore.password=${PARTNER_KEYSTORE_PASSWORD}
 ```
 
-Adding a new dependency is a YAML-only change: add an `external.dependencies.<name>` entry.
-No new beans and no new code are needed.
+Adding HTTP wiring for a new dependency is a properties-only change: add an
+`external.dependencies.<name>` entry. Domain-specific DTO mapping and business rules still belong
+behind a small API-specific service interface.
 
 Apache HttpClient automatic retries are disabled; Resilience4j remains the only retry owner so
 attempt counts and retry logs stay accurate.
@@ -93,12 +84,17 @@ Omit the `keystore` block when the API only needs a custom trust store and not m
 @RequiredArgsConstructor
 public class OrderEnrichmentService {
 
-    private final ResilientApiClientFactory factory;
+    private final OrderExternalApiService orderService;
+    private final CustomerExternalApiService customerService;
+    private final PricingExternalApiService pricingService;
+    private final InventoryExternalApiService inventoryService;
 
-    public String enrichOrder(String orderId) {
+    public InventoryDto enrichOrder(String orderId) {
         CorrelationIdContext.getOrCreate(); // one id for the whole chain
-        String order = factory.forDependency("step1-api").get("/orders/" + orderId);
-        // each external call retries independently
+        OrderDto order = orderService.getOrder(orderId);
+        CustomerDto customer = customerService.getCustomer(order.customerId());
+        PricingDto pricing = pricingService.getPricing(customer.pricingTier());
+        return inventoryService.getInventory(pricing.skuId());
     }
 }
 ```
