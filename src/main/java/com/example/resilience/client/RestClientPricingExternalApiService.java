@@ -1,6 +1,7 @@
 package com.example.resilience.client;
 
 import com.example.resilience.client.dto.PricingDto;
+import com.example.resilience.core.ApiRequest;
 import com.example.resilience.core.ResilientApiClientFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,7 +16,11 @@ class RestClientPricingExternalApiService implements PricingExternalApiService {
     @Override
     public PricingDto getPricing(String pricingTier) {
         PricingDto pricing = factory.forDependency("step3-api")
-                .get("/pricing/" + ExternalApiUris.encodePathSegment(pricingTier), PricingDto.class);
+                .get(ApiRequest.builder("/pricing/{pricingTier}")
+                        .uriVariable("pricingTier", pricingTier)
+                        .queryParam("currency", "USD")
+                        .header("X-Pricing-Mode", "current")
+                        .build(), PricingDto.class);
         require(StringUtils.hasText(pricing.skuId()), "pricing tier " + pricingTier + " has no SKU");
         return pricing;
     }

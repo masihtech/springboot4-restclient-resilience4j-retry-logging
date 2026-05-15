@@ -33,9 +33,9 @@ public class OrderEnrichmentService {
 
         try {
             OrderDto order = orderService.getOrder(orderId);
-            CustomerDto customer = customerService.getCustomer(order.customerId());
+            CustomerDto customer = customerService.getCustomer(orderId, order.customerId());
             PricingDto pricing = pricingService.getPricing(customer.pricingTier());
-            return inventoryService.getInventory(pricing.skuId());
+            return inventoryService.getInventory(pricing.pricingTier(), pricing.skuId());
         } finally {
             if (createdCorrelationId) {
                 CorrelationIdContext.clear();

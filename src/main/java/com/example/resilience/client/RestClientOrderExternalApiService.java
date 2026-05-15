@@ -1,6 +1,7 @@
 package com.example.resilience.client;
 
 import com.example.resilience.client.dto.OrderDto;
+import com.example.resilience.core.ApiRequest;
 import com.example.resilience.core.ResilientApiClientFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,7 +16,11 @@ class RestClientOrderExternalApiService implements OrderExternalApiService {
     @Override
     public OrderDto getOrder(String orderId) {
         OrderDto order = factory.forDependency("step1-api")
-                .get("/orders/" + ExternalApiUris.encodePathSegment(orderId), OrderDto.class);
+                .get(ApiRequest.builder("/orders/{orderId}")
+                        .uriVariable("orderId", orderId)
+                        .queryParam("include", "customer")
+                        .header("X-Client-Flow", "order-enrichment")
+                        .build(), OrderDto.class);
         require(StringUtils.hasText(order.customerId()), "order " + orderId + " has no customer");
         return order;
     }

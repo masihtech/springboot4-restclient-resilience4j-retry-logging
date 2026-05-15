@@ -1,6 +1,7 @@
 package com.example.resilience.client;
 
 import com.example.resilience.client.dto.InventoryDto;
+import com.example.resilience.core.ApiRequest;
 import com.example.resilience.core.ResilientApiClientFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,9 +13,15 @@ class RestClientInventoryExternalApiService implements InventoryExternalApiServi
     private final ResilientApiClientFactory factory;
 
     @Override
-    public InventoryDto getInventory(String skuId) {
+    public InventoryDto getInventory(String pricingTier, String skuId) {
         InventoryDto inventory = factory.forDependency("step4-api")
-                .get("/inventory/" + ExternalApiUris.encodePathSegment(skuId), InventoryDto.class);
+                .get(ApiRequest.builder("/pricing/{pricingTier}/inventory/{skuId}")
+                        .uriVariable("pricingTier", pricingTier)
+                        .uriVariable("skuId", skuId)
+                        .queryParam("warehouse", "primary")
+                        .queryParam("include", "availability", "lead-time")
+                        .header("X-Inventory-Scope", "regional")
+                        .build(), InventoryDto.class);
         require(inventory.availableUnits() > 0, "SKU " + inventory.skuId() + " is out of stock");
         return inventory;
     }

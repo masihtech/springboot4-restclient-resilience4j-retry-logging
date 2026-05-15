@@ -39,7 +39,8 @@ ResilientApiClient
 | `ResilienceRetryConfig` | Builds one Resilience4j `RetryConfig` per dependency (instance name == dependency name) |
 | `RetryEventLoggingConfig` / `RetryEventLogging` | Attaches DEBUG retry-lifecycle logging to every retry instance |
 | `ResilientRestClientExecutor` | Attempt counting, per-attempt logging, body sanitization, status classification, retry integration |
-| `ResilientApiClient` | Per-dependency facade: retry-decorated `get` / `exchangeIdempotent` |
+| `ApiRequest` | Per-call URI template variables, query params, and request headers |
+| `ResilientApiClient` | Per-dependency facade: retry-decorated `get` / `exchangeIdempotent` for string URIs or `ApiRequest` |
 | `ResilientApiClientFactory` | Resolves and caches one `ResilientApiClient` per dependency |
 | `CorrelationIdContext` | MDC-backed correlation id, propagated across every retry attempt |
 | `HttpResponseClassifier` / `ResponseBodySanitizer` | Retryable-status rules; secret masking + truncation for logs |
@@ -92,15 +93,29 @@ public class OrderEnrichmentService {
     public InventoryDto enrichOrder(String orderId) {
         CorrelationIdContext.getOrCreate(); // one id for the whole chain
         OrderDto order = orderService.getOrder(orderId);
-        CustomerDto customer = customerService.getCustomer(order.customerId());
+        CustomerDto customer = customerService.getCustomer(orderId, order.customerId());
         PricingDto pricing = pricingService.getPricing(customer.pricingTier());
-        return inventoryService.getInventory(pricing.skuId());
+        return inventoryService.getInventory(pricing.pricingTier(), pricing.skuId());
     }
 }
 ```
 
 See [`OrderEnrichmentService`](src/main/java/com/example/resilience/client/OrderEnrichmentService.java)
 for the full four-call sequential chain.
+
+Each API-specific service owns its own request shape. Simple calls can still use
+`get("/orders/123")`; use `ApiRequest` when an API needs URI template variables, query params,
+or request-specific headers:
+
+```java
+CustomerDto customer = factory.forDependency("step2-api")
+        .get(ApiRequest.builder("/orders/{orderId}/customers/{customerId}")
+                .uriVariable("orderId", orderId)
+                .uriVariable("customerId", customerId)
+                .queryParam("fields", "pricingTier")
+                .header("X-Customer-Use-Case", "pricing")
+                .build(), CustomerDto.class);
+```
 
 ---
 
@@ -129,10 +144,11 @@ Classification lives in [`HttpResponseClassifier`](src/main/java/com/example/res
 
 ## Safe Mutation Retries
 
-GET is the default-safe path. For mutations, use:
+GET is the default-safe path. For mutations, use either a URI string or `ApiRequest`:
 
 ```java
 client.exchangeIdempotent(method, uri, body, idempotencyKey)
+client.exchangeIdempotent(method, request, body, idempotencyKey)
 ```
 
 - The `idempotencyKey` is mandatory. A blank key throws `IllegalArgumentException`.

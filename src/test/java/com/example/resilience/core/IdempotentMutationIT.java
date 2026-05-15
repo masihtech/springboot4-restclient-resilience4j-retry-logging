@@ -59,6 +59,27 @@ class IdempotentMutationIT {
     }
 
     @Test
+    void idempotentMutationAcceptsStructuredRequestMetadata() throws Exception {
+        server.enqueue(new MockResponse().setResponseCode(200).setBody("updated"));
+
+        ApiRequest request = ApiRequest.builder("/customers/{customerId}/orders/{orderId}")
+                .uriVariable("customerId", "C1")
+                .uriVariable("orderId", "O1")
+                .queryParam("notify", "false")
+                .header("X-Actor", "order-enrichment")
+                .build();
+
+        ResponseEntity<String> response = executor.executeIdempotentMutation(
+                restClient, RETRY, "test-api", HttpMethod.PATCH, request, "{\"status\":\"READY\"}", "key-456");
+
+        RecordedRequest recorded = server.takeRequest();
+        assertThat(response.getBody()).isEqualTo("updated");
+        assertThat(recorded.getPath()).isEqualTo("/customers/C1/orders/O1?notify=false");
+        assertThat(recorded.getHeader("X-Actor")).isEqualTo("order-enrichment");
+        assertThat(recorded.getHeader("Idempotency-Key")).isEqualTo("key-456");
+    }
+
+    @Test
     void rejectsMissingIdempotencyKey() {
         assertThatThrownBy(() -> executor.executeIdempotentMutation(
                 restClient, RETRY, "test-api", HttpMethod.PUT, "/resource/1", "{}", "  "))

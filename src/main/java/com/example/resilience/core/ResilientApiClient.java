@@ -29,22 +29,42 @@ public class ResilientApiClient {
 
     /** Retry-decorated GET returning the raw response body. */
     public String get(String uri) {
-        return getEntity(uri).getBody();
+        return get(ApiRequest.uri(uri));
+    }
+
+    /** Retry-decorated GET returning the raw response body. */
+    public String get(ApiRequest request) {
+        return getEntity(request).getBody();
     }
 
     /** Retry-decorated GET, deserialized into {@code type} (e.g. a record DTO). */
     public <T> T get(String uri, Class<T> type) {
-        return deserialize(get(uri), type);
+        return get(ApiRequest.uri(uri), type);
+    }
+
+    /** Retry-decorated GET, deserialized into {@code type} (e.g. a record DTO). */
+    public <T> T get(ApiRequest request, Class<T> type) {
+        return deserialize(get(request), type);
     }
 
     /** Retry-decorated GET, deserialized into a generic {@code type} (e.g. {@code List<FooDto>}). */
     public <T> T get(String uri, TypeReference<T> type) {
-        return deserialize(get(uri), type);
+        return get(ApiRequest.uri(uri), type);
+    }
+
+    /** Retry-decorated GET, deserialized into a generic {@code type} (e.g. {@code List<FooDto>}). */
+    public <T> T get(ApiRequest request, TypeReference<T> type) {
+        return deserialize(get(request), type);
     }
 
     /** Retry-decorated GET returning the full response entity. */
     public ResponseEntity<String> getEntity(String uri) {
-        return executor.executeGet(restClient, dependencyName, dependencyName, uri);
+        return getEntity(ApiRequest.uri(uri));
+    }
+
+    /** Retry-decorated GET returning the full response entity. */
+    public ResponseEntity<String> getEntity(ApiRequest request) {
+        return executor.executeGet(restClient, dependencyName, dependencyName, request);
     }
 
     /**
@@ -59,8 +79,17 @@ public class ResilientApiClient {
             Object body,
             String idempotencyKey
     ) {
+        return exchangeIdempotent(method, ApiRequest.uri(uri), body, idempotencyKey);
+    }
+
+    public ResponseEntity<String> exchangeIdempotent(
+            HttpMethod method,
+            ApiRequest request,
+            Object body,
+            String idempotencyKey
+    ) {
         return executor.executeIdempotentMutation(
-                restClient, dependencyName, dependencyName, method, uri, body, idempotencyKey);
+                restClient, dependencyName, dependencyName, method, request, body, idempotencyKey);
     }
 
     private <T> T deserialize(String body, Class<T> type) {
